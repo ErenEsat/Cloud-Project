@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ortak Çizim Tahtası</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             margin: 0;
+            padding: 15px;
             background-color: #1e1e2e;
             color: #cdd6f4;
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
+            min-height: 100vh;
         }
         .toolbar {
             background: #313244;
@@ -23,26 +25,31 @@
             border-radius: 8px;
             margin-bottom: 12px;
             display: flex;
-            gap: 15px;
+            gap: 20px;
             align-items: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 10;
         }
         canvas {
             background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 8px 16px rgba(0,0,0,0.4);
             cursor: crosshair;
+            max-width: 100%;
         }
         button {
             background: #f38ba8;
             border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
+            padding: 8px 16px;
+            border-radius: 6px;
             color: #11111b;
             font-weight: bold;
             cursor: pointer;
+            transition: opacity 0.2s;
         }
-        button:hover { opacity: 0.9; }
+        button:hover {
+            opacity: 0.85;
+        }
     </style>
 </head>
 <body>
@@ -53,16 +60,9 @@
         <button id="clearBtn">Tahtayı Temizle</button>
     </div>
 
-    <!-- Farklı ekranlarda kayma olmaması için sabit çözünürlük veriyoruz -->
-    <canvas id="board" width="1000" height="600"></canvas>
-    <!-- Farklı ekranlarda kayma olmaması için sabit çözünürlük veriyoruz -->
-    <canvas id="board" width="1000" height="600"></canvas>
+    <canvas id="board" width="1000" height="550"></canvas>
 
-    <!-- Sunucunun sunduğu Socket.io istemci kütüphanesi -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="client.js"></script>
-</body>
-</html>
     <script src="client.js"></script>
 </body>
 </html>

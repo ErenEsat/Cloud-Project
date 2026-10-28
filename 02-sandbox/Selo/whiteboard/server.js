@@ -19,6 +19,8 @@ if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+let saveTimeout = null;
+
 // Sunucu başlarken diskte eski çizimler varsa RAM'e (drawingHistory) yükle
 let drawingHistory = [];
 if (fs.existsSync(DATA_FILE)) {
@@ -33,10 +35,14 @@ if (fs.existsSync(DATA_FILE)) {
 }
 
 // RAM'deki çizimleri diske (data.json) kaydeden fonksiyon
+// Çizim devam ederken diske yazmayı bekletir, çizim durduktan 1 sn sonra ТЕK SEFERDE yazar
 function saveToDisk() {
-    fs.writeFile(DATA_FILE, JSON.stringify(drawingHistory), (err) => {
-        if (err) console.error('Diske yazma hatasi:', err);
-    });
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+        fs.writeFile(DATA_FILE, JSON.stringify(drawingHistory), (err) => {
+            if (err) console.error('Diske yazma hatasi:', err);
+        });
+    }, 1000);
 }
 
 app.use(express.static(path.join(__dirname, 'public')));

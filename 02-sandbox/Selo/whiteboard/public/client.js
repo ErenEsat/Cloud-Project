@@ -43,6 +43,11 @@ canvas.addEventListener('mousemove', (e) => {
     
     const currentX = e.offsetX;
     const currentY = e.offsetY;
+
+    // OPTIMIZASYON: Fare eski noktadan en az 4 piksel uzaklaşmadıysa kaydetme!
+    const distance = Math.hypot(currentX - lastX, currentY - lastY);
+    if (distance < 4) return;
+
     const color = colorPicker.value;
     const size = sizePicker.value;
 
