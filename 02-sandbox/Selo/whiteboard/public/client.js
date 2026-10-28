@@ -1,4 +1,3 @@
-// Sunucuyla WebSocket bağlantısını başlat
 const socket = io();
 
 const canvas = document.getElementById('board');
@@ -11,7 +10,6 @@ let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
-// emit parametresi: Bu çizgi sunucuya gönderilsin mi?
 function drawLine(x0, y0, x1, y1, color, size, emit) {
     ctx.beginPath();
     ctx.moveTo(x0, y0);
@@ -22,10 +20,8 @@ function drawLine(x0, y0, x1, y1, color, size, emit) {
     ctx.stroke();
     ctx.closePath();
 
-    // Eğer başkasından gelen bir çizimse tekrar sunucuya gönderme!
     if (!emit) return;
 
-    // Kendi çizimimizse JSON olarak sunucuya fırlat
     socket.emit('draw', {
         x0: x0,
         y0: y0,
@@ -36,7 +32,6 @@ function drawLine(x0, y0, x1, y1, color, size, emit) {
     });
 }
 
-// --- YEREL FARE OLAYLARI ---
 canvas.addEventListener('mousedown', (e) => {
     isDrawing = true;
     lastX = e.offsetX;
@@ -51,7 +46,6 @@ canvas.addEventListener('mousemove', (e) => {
     const color = colorPicker.value;
     const size = sizePicker.value;
 
-    // Kendi faremizle çizdiğimiz için son parametre 'true' (sunucuya gönder)
     drawLine(lastX, lastY, currentX, currentY, color, size, true);
 
     lastX = currentX;
@@ -61,7 +55,6 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseup', () => isDrawing = false);
 canvas.addEventListener('mouseout', () => isDrawing = false);
 
-// Temizle butonuna basıldığında hem kendi ekranını sil hem sunucuya haber ver
 clearBtn.addEventListener('click', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     socket.emit('clear');
@@ -69,13 +62,18 @@ clearBtn.addEventListener('click', () => {
 
 // --- SUNUCUDAN GELEN CANLI OLAYLAR ---
 
-// Başka bir kullanıcı çizgi çizdiğinde:
+// AŞAMA 3: Sayfa ilk açıldığında sunucudaki tüm geçmiş çizimleri ekrana bas
+socket.on('init_board', (history) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    history.forEach((item) => {
+        drawLine(item.x0, item.y0, item.x1, item.y1, item.color, item.size, false);
+    });
+});
+
 socket.on('draw', (data) => {
-    // Son parametre 'false' çünkü bu veri zaten sunucudan geldi
     drawLine(data.x0, data.y0, data.x1, data.y1, data.color, data.size, false);
 });
 
-// Başka bir kullanıcı tahtayı temizlediğinde:
 socket.on('clear', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 });

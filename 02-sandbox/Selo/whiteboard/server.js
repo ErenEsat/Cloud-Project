@@ -2,39 +2,70 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
-// Socket.io'nun çalışması için Express'i HTTP sunucusuna bağlıyoruz
 const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = 3002;
 
+// Çizimlerin kaydedileceği klasör ve dosya yolu
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'data.json');
+
+// 'data' klasörü yoksa otomatik oluştur
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Sunucu başlarken diskte eski çizimler varsa RAM'e (drawingHistory) yükle
+let drawingHistory = [];
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        const rawData = fs.readFileSync(DATA_FILE, 'utf-8');
+        drawingHistory = JSON.parse(rawData);
+        console.log(`Diskten ${drawingHistory.length} adet cizim adimi yuklendi.`);
+    } catch (err) {
+        console.error('Veri dosyasi okunurken hata olustu, sifirdan baslaniyor:', err);
+        drawingHistory = [];
+    }
+}
+
+// RAM'deki çizimleri diske (data.json) kaydeden fonksiyon
+function saveToDisk() {
+    fs.writeFile(DATA_FILE, JSON.stringify(drawingHistory), (err) => {
+        if (err) console.error('Diske yazma hatasi:', err);
+    });
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Bir tarayıcı (istemci) sunucuya bağlandığında tetiklenir
 io.on('connection', (socket) => {
     console.log(`Yeni bir kullanici baglandi! ID: ${socket.id}`);
 
-    // 1. İstemciden 'draw' (çizim) verisi geldiğinde:
+    // Bağlanan kullanıcıya o ana kadar çizilmiş tüm geçmişi gönder
+    socket.emit('init_board', drawingHistory);
+
+    // Yeni bir çizgi geldiğinde:
     socket.on('draw', (data) => {
-        // Gönderen kişi HARİÇ diğer herkese bu çizim koordinatlarını ilet
-        socket.broadcast.emit('draw', data);
+        drawingHistory.push(data); // 1. RAM'e ekle
+        saveToDisk();              // 2. Diske kaydet
+        socket.broadcast.emit('draw', data); // 3. Diğerlerine gönder
     });
 
-    // 2. İstemciden 'clear' (tahtayı temizle) komutu geldiğinde:
+    // Tahtayı temizle komutu geldiğinde:
     socket.on('clear', () => {
-        // Gönderen kişi HARİÇ diğer herkesin ekranını temizlet
-        socket.broadcast.emit('clear');
+        drawingHistory = [];       // 1. RAM'i sıfırla
+        saveToDisk();              // 2. Diski sıfırla
+        socket.broadcast.emit('clear'); // 3. Diğer ekranları temizle
     });
 
-    // Kullanıcı sekmeyi kapattığında:
     socket.on('disconnect', () => {
         console.log(`Kullanici ayrildi: ${socket.id}`);
     });
 });
 
-// DİKKAT: Artık app.listen değil, server.listen kullanıyoruz!
 server.listen(PORT, () => {
-    console.log(`Canli Whiteboard sunucusu calisiyor: http://localhost:${PORT}`);
+    console.log(`Kalici Hafizali Whiteboard calisiyor: http://localhost:${PORT}`);
 });
