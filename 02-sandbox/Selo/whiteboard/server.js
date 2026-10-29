@@ -10,36 +10,38 @@ const io = new Server(server);
 
 const PORT = 3002;
 
-// Çizimlerin kaydedileceği klasör ve dosya yolu
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 
-// 'data' klasörü yoksa otomatik oluştur
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 let saveTimeout = null;
 
-// Sunucu başlarken diskte eski çizimler varsa RAM'e (drawingHistory) yükle
-let drawingHistory = [];
+// Her odanın çizim geçmişini ayrı tutan nesne: { "genel": [...], "ekip1": [...] }
+let roomsHistory = {};
 if (fs.existsSync(DATA_FILE)) {
     try {
         const rawData = fs.readFileSync(DATA_FILE, 'utf-8');
-        drawingHistory = JSON.parse(rawData);
-        console.log(`Diskten ${drawingHistory.length} adet cizim adimi yuklendi.`);
+        const parsed = JSON.parse(rawData);
+        // Eski data.json düz liste (Array) ise 'genel' odasına aktar
+        if (Array.isArray(parsed)) {
+            roomsHistory = { genel: parsed };
+        } else {
+            roomsHistory = parsed;
+        }
+        console.log('Diskten oda verileri basariyla yuklendi.');
     } catch (err) {
         console.error('Veri dosyasi okunurken hata olustu, sifirdan baslaniyor:', err);
-        drawingHistory = [];
+        roomsHistory = {};
     }
 }
 
-// RAM'deki çizimleri diske (data.json) kaydeden fonksiyon
-// Çizim devam ederken diske yazmayı bekletir, çizim durduktan 1 sn sonra ТЕK SEFERDE yazar
 function saveToDisk() {
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
-        fs.writeFile(DATA_FILE, JSON.stringify(drawingHistory), (err) => {
+        fs.writeFile(DATA_FILE, JSON.stringify(roomsHistory), (err) => {
             if (err) console.error('Diske yazma hatasi:', err);
         });
     }, 1000);
@@ -47,31 +49,49 @@ function saveToDisk() {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// /oda/oda-adi şeklinde girildiğinde de ana çizim sayfasını aç
+app.get('/oda/:roomName', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 io.on('connection', (socket) => {
-    console.log(`Yeni bir kullanici baglandi! ID: ${socket.id}`);
+    let currentRoom = 'genel';
 
-    // Bağlanan kullanıcıya o ana kadar çizilmiş tüm geçmişi gönder
-    socket.emit('init_board', drawingHistory);
+    // Kullanıcı bir odaya katıldığında
+    socket.on('join_room', (roomName) => {
+        currentRoom = (roomName || 'genel').trim().toLowerCase();
+        socket.join(currentRoom);
 
-    // Yeni bir çizgi geldiğinde:
-    socket.on('draw', (data) => {
-        drawingHistory.push(data); // 1. RAM'e ekle
-        saveToDisk();              // 2. Diske kaydet
-        socket.broadcast.emit('draw', data); // 3. Diğerlerine gönder
+        if (!roomsHistory[currentRoom]) {
+            roomsHistory[currentRoom] = [];
+        }
+
+        console.log(`Kullanici (${socket.id}) [${currentRoom}] odasina baglandi.`);
+        socket.emit('init_board', roomsHistory[currentRoom]);
     });
 
-    // Tahtayı temizle komutu geldiğinde:
+    // Çizim geldiğinde sadece o odadakilere gönder
+    socket.on('draw', (data) => {
+        if (!roomsHistory[currentRoom]) {
+            roomsHistory[currentRoom] = [];
+        }
+        roomsHistory[currentRoom].push(data);
+        saveToDisk();
+        socket.to(currentRoom).emit('draw', data);
+    });
+
+    // Temizle komutu geldiğinde sadece o odayı sıfırla
     socket.on('clear', () => {
-        drawingHistory = [];       // 1. RAM'i sıfırla
-        saveToDisk();              // 2. Diski sıfırla
-        socket.broadcast.emit('clear'); // 3. Diğer ekranları temizle
+        roomsHistory[currentRoom] = [];
+        saveToDisk();
+        socket.to(currentRoom).emit('clear');
     });
 
     socket.on('disconnect', () => {
-        console.log(`Kullanici ayrildi: ${socket.id}`);
+        console.log(`Kullanici ayrildi: ${socket.id} (Oda: ${currentRoom})`);
     });
 });
 
 server.listen(PORT, () => {
-    console.log(`Kalici Hafizali Whiteboard calisiyor: http://localhost:${PORT}`);
+    console.log(`Oda Destekli Whiteboard calisiyor: http://localhost:${PORT}`);
 });
