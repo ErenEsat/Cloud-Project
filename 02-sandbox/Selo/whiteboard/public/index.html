@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ortak Çizim Tahtası</title>
     <style>
         * {
@@ -25,10 +25,28 @@
             border-radius: 8px;
             margin-bottom: 12px;
             display: flex;
-            gap: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
             align-items: center;
+            justify-content: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             z-index: 10;
+        }
+        .room-box {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            background: #181825;
+            padding: 5px 10px;
+            border-radius: 6px;
+        }
+        .room-box input {
+            background: #313244;
+            border: 1px solid #45475a;
+            color: #cdd6f4;
+            padding: 5px 8px;
+            border-radius: 4px;
+            width: 110px;
         }
         canvas {
             background-color: #ffffff;
@@ -36,16 +54,20 @@
             box-shadow: 0 8px 16px rgba(0,0,0,0.4);
             cursor: crosshair;
             max-width: 100%;
+            touch-action: none; /* Telefondan çizerken sayfanın kaymasını engeller */
         }
         button {
             background: #f38ba8;
             border: none;
-            padding: 8px 16px;
+            padding: 8px 14px;
             border-radius: 6px;
             color: #11111b;
             font-weight: bold;
             cursor: pointer;
             transition: opacity 0.2s;
+        }
+        button.room-btn {
+            background: #89b4fa;
         }
         button:hover {
             opacity: 0.85;
@@ -55,6 +77,11 @@
 <body>
 
     <div class="toolbar">
+        <div class="room-box">
+            <span>Oda:</span>
+            <input type="text" id="roomInput" placeholder="genel">
+            <button id="roomBtn" class="room-btn">Odaya Git</button>
+        </div>
         <label>Renk: <input type="color" id="colorPicker" value="#000000"></label>
         <label>Kalınlık: <input type="range" id="sizePicker" min="1" max="20" value="4"></label>
         <button id="clearBtn">Tahtayı Temizle</button>
@@ -63,6 +90,6 @@
     <canvas id="board" width="1000" height="550"></canvas>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="client.js"></script>
+    <script src="/client.js"></script>
 </body>
 </html>

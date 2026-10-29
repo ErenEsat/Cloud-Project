@@ -5,10 +5,39 @@ const ctx = canvas.getContext('2d');
 const colorPicker = document.getElementById('colorPicker');
 const sizePicker = document.getElementById('sizePicker');
 const clearBtn = document.getElementById('clearBtn');
+const roomInput = document.getElementById('roomInput');
+const roomBtn = document.getElementById('roomBtn');
+
+// URL'den oda adını bul (/oda/matematik -> "matematik", yoksa "genel")
+const pathParts = window.location.pathname.split('/');
+const currentRoom = (pathParts[1] === 'oda' && pathParts[2]) ? decodeURIComponent(pathParts[2]) : 'genel';
+roomInput.value = currentRoom;
+
+// Odaya geçiş butonu
+roomBtn.addEventListener('click', () => {
+    const targetRoom = roomInput.value.trim().toLowerCase() || 'genel';
+    window.location.href = `/oda/${encodeURIComponent(targetRoom)}`;
+});
+
+// Sunucuya bağlandığında odaya katıl
+socket.on('connect', () => {
+    socket.emit('join_room', currentRoom);
+});
 
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
+
+// Hem bilgisayar faresi hem telefon ekranı için tam ölçekli koordinat hesaplayıcı
+function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
+}
 
 function drawLine(x0, y0, x1, y1, color, size, emit) {
     ctx.beginPath();
@@ -22,52 +51,50 @@ function drawLine(x0, y0, x1, y1, color, size, emit) {
 
     if (!emit) return;
 
-    socket.emit('draw', {
-        x0: x0,
-        y0: y0,
-        x1: x1,
-        y1: y1,
-        color: color,
-        size: size
-    });
+    socket.emit('draw', { x0, y0, x1, y1, color, size });
 }
 
-canvas.addEventListener('mousedown', (e) => {
+function startDrawing(e) {
     isDrawing = true;
-    lastX = e.offsetX;
-    lastY = e.offsetY;
-});
+    const pos = getPos(e);
+    lastX = pos.x;
+    lastY = pos.y;
+}
 
-canvas.addEventListener('mousemove', (e) => {
+function moveDrawing(e) {
     if (!isDrawing) return;
-    
-    const currentX = e.offsetX;
-    const currentY = e.offsetY;
+    if (e.cancelable) e.preventDefault();
 
-    // OPTIMIZASYON: Fare eski noktadan en az 4 piksel uzaklaşmadıysa kaydetme!
-    const distance = Math.hypot(currentX - lastX, currentY - lastY);
+    const pos = getPos(e);
+    const distance = Math.hypot(pos.x - lastX, pos.y - lastY);
     if (distance < 4) return;
 
-    const color = colorPicker.value;
-    const size = sizePicker.value;
+    drawLine(lastX, lastY, pos.x, pos.y, colorPicker.value, sizePicker.value, true);
+    lastX = pos.x;
+    lastY = pos.y;
+}
 
-    drawLine(lastX, lastY, currentX, currentY, color, size, true);
+function stopDrawing() {
+    isDrawing = false;
+}
 
-    lastX = currentX;
-    lastY = currentY;
-});
+// Bilgisayar Fare Olayları
+canvas.addEventListener('mousedown', startDrawing);
+canvas.addEventListener('mousemove', moveDrawing);
+canvas.addEventListener('mouseup', stopDrawing);
+canvas.addEventListener('mouseout', stopDrawing);
 
-canvas.addEventListener('mouseup', () => isDrawing = false);
-canvas.addEventListener('mouseout', () => isDrawing = false);
+// Telefon Dokunmatik Olayları
+canvas.addEventListener('touchstart', startDrawing, { passive: false });
+canvas.addEventListener('touchmove', moveDrawing, { passive: false });
+canvas.addEventListener('touchend', stopDrawing);
+canvas.addEventListener('touchcancel', stopDrawing);
 
 clearBtn.addEventListener('click', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     socket.emit('clear');
 });
 
-// --- SUNUCUDAN GELEN CANLI OLAYLAR ---
-
-// AŞAMA 3: Sayfa ilk açıldığında sunucudaki tüm geçmiş çizimleri ekrana bas
 socket.on('init_board', (history) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     history.forEach((item) => {
