@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı Ortak Word Editörü</title>
+    <!-- Quill Rich Text Editor CSS -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background: #f1f5f9; color: #1e293b; display: flex; flex-direction: column; height: 100vh; }
+        header { background: #0f172a; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .controls { display: flex; align-items: center; gap: 10px; }
+        input { padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: white; }
+        button { padding: 6px 14px; border-radius: 6px; border: none; background: #3b82f6; color: white; cursor: pointer; font-weight: 600; }
+        button:hover { background: #2563eb; }
+        .status-bar { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+        .badge { background: #22c55e; color: #052e16; padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 12px; }
+        .editor-wrapper { max-width: 900px; width: 100%; margin: 20px auto; flex: 1; display: flex; flex-direction: column; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden; }
+        #editor { flex: 1; font-size: 16px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="controls">
+        <strong>📄 CollabWord</strong>
+        <input type="text" id="usernameInput" placeholder="Adın (Örn: Esat)" value="Esat" />
+        <input type="text" id="roomInput" placeholder="Belge Adı" value="ortak-notlar" />
+        <button id="joinBtn">Belgeye Bağlan</button>
+    </div>
+    <div class="status-bar">
+        <span id="saveStatus">Kaydedildi ✓</span>
+        <span class="badge" id="activeUsers">Aktif: 1</span>
+    </div>
+</header>
+
+<div class="editor-wrapper">
+    <div id="editor"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+<script>
+    const socket = io();
+    const saveStatus = document.getElementById('saveStatus');
+    const activeUsers = document.getElementById('activeUsers');
+
+    // Word Araç Çubuğu Ayarları
+    const toolbarOptions = [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['code-block', 'clean']
+    ];
+
+    const quill = new Quill('#editor', {
+        theme: 'snow',
+        modules: { toolbar: toolbarOptions }
+    });
+
+    quill.disable();
+    quill.setText('Belge yükleniyor...');
+
+    function connectToRoom() {
+        const username = document.getElementById('usernameInput').value.trim() || 'Anonim';
+        const roomId = document.getElementById('roomInput').value.trim() || 'ortak-notlar';
+        socket.emit('join-room', { roomId, username });
+    }
+
+    document.getElementById('joinBtn').addEventListener('click', connectToRoom);
+
+    // İlk açılışta otomatik bağlan
+    connectToRoom();
+
+    // 1. Sunucudan kayıtlı belge geldiğinde ekrana bas
+    socket.on('load-document', (documentContent) => {
+        quill.setContents(documentContent);
+        quill.enable();
+    });
+
+    // 2. Ben yazı yazdığımda sadece değişen harfi (delta) sunucuya fırlat
+    quill.on('text-change', (delta, oldDelta, source) => {
+        if (source !== 'user') return; // Değişiklik başkasından geldiyse tekrar gönderme (sonsuz döngüyü önler)
+        saveStatus.innerText = 'Yazılıyor...';
+        socket.emit('send-changes', delta);
+        socket.emit('save-document', quill.getContents());
+        setTimeout(() => { saveStatus.innerText = 'Kaydedildi ✓'; }, 400);
+    });
+
+    // 3. Başkası yazı yazdığında benim ekranıma anında uygula
+    socket.on('receive-changes', (delta) => {
+        quill.updateContents(delta);
+    });
+
+    // 4. Odadaki aktif kişileri göster
+    socket.on('room-users', (users) => {
+        activeUsers.innerText = `Odadakiler (${users.length}): ${users.join(', ')}`;
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+services:
+  collab-editor:
+    build: .
+    container_name: collab-word-editor
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
